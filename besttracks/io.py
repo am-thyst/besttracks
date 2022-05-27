@@ -13,6 +13,9 @@ from datetime import datetime, timedelta
 from glob import glob
 from pathlib import Path
 from .core import TCSet, TC, Drifter, DrifterSet
+import wget
+import gzip
+import ssl
 
 undef = -9999.0
 
