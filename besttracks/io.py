@@ -942,6 +942,72 @@ def __parse_datetime(text):
     
     return pd.Timestamp(yr, mo, dy, hr)
 
+def parse_TCs_NHC_raw(basin,storm_number,year,filepath):
+    '''
+    Parses a single TC, found from the best track NHC archive (https://ftp.nhc.noaa.gov/atcf/archive)
+    In some cases more useful than the other reduced NHC "best track" as it contains more information
+    such as RMW, GUST, TRANSLATION SPEED, EYE DIAMETER, STORM DIRECTION
+    For information on the inputs please visit: https://ftp.nhc.noaa.gov/atcf/archive/README
+    '''
+    undef = np.nan
+    os.chdir(filepath)
+    # downloads and unzips data if the file does not already exist in the directory
+    if len(glob(filepath+'b'+str(basin)+str(storm_number)+str(year)+'.dat.gz')) == 0:
+        ssl._create_default_https_context = ssl._create_unverified_context
+        file = wget.download('https://ftp.nhc.noaa.gov/atcf/archive/'+str(year)+'/b'+str(basin)+str(storm_number)+str(year)+'.dat.gz')
+        with gzip.open(file, 'rt') as f:
+            fileContent = f.readlines()
+    else:
+        with gzip.open('b'+str(basin)+str(storm_number)+str(year)+'.dat.gz', 'rt') as f:
+            fileContent = f.readlines()
+    re=[]
+    for i, line in enumerate(fileContent):
+        strIdx = i + 1
+        for ln in fileContent[strIdx:strIdx+1]:
+            TIME = datetime.strptime(ln[8:18], "%Y%m%d%H")
+            TYPE = ln[59:61]
+            ID    = ln[8:12]+ln[4:6] # unique in NHC
+            NAME  = ln[149:159].strip()
+            if ln[38] == "N":
+                LAT  = float(ln[35:37]+"."+ln[37])
+            else:
+                LAT  = float(ln[35:37]+"."+ln[37])*-1
+            if ln[45] == "W":
+                LON  = float(ln[42:44]+"."+ln[44])*-1
+            else:
+                LON  = float(ln[42:44]+"."+ln[44])
+            PRS  = float(ln[53:57]) # hPa 
+            WND  = float(ln[48:51]) * 0.514 # kts to m/s
+            GUST = float(ln[114:117]) * 0.514 # kts to m/s
+            RMW = float(ln[109:112]) * 1.852 # nm to km
+            EYE = float(ln[118:122].strip()) * 1.852 # nm to km
+            SPEED = float(ln[143:147].strip()) * 0.514 # kts to m/s
+            DIR = float(ln[138:142].strip()) # deg
+
+            if PRS == -999:
+                PRS = undef
+            
+            if EYE == 0:
+                EYE = undef
+            
+            if SPEED == 0:
+                SPEED = undef
+            
+            if DIR == 0:
+                DIR = undef
+            
+            if GUST == -99 or GUST == -999 or GUST == 0:
+                GUST = undef
+
+            if WND == -99 or WND == -999:
+                WND = undef
+
+            re.append((ID, NAME, TIME, LAT, LON, TYPE, PRS, WND, GUST, RMW, EYE, DIR, SPEED))
+
+    df = pd.DataFrame.from_records(re, columns=['ID','NAME','TIME','LAT',
+                                                  'LON','TYPE','PRS','WND','GUST','RMW','EYE', 'DIR', 'SPEED'])
+    return(df)
+
 
 """
 Test codes
